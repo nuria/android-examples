@@ -1,3 +1,4 @@
+
 Expanding on dagger's basic android sample to explain:
 
 1) How you would add a private domain object that would live with the IOC module definition.
