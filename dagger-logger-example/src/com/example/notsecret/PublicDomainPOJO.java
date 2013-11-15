@@ -1,11 +1,12 @@
-package com.example.testingprivacy;
+package com.example.notsecret;
 
 import com.example.interfaces.Abc;
+import com.example.secret.LoggerProvider;
 
 public class PublicDomainPOJO implements Abc {
 
 	private int a;
-	private String b = " I am public domain";
+	private String b = "I am public domain";
 	private String[] c;
 
 	/* (non-Javadoc)
@@ -25,6 +26,7 @@ public class PublicDomainPOJO implements Abc {
 	 */
 	@Override
 	public String getB() {
+		LoggerProvider.getLogger().d("TEST", "hola que tal");
 		return b;
 	}
 

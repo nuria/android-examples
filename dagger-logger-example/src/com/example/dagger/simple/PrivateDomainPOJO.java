@@ -5,10 +5,6 @@ import com.example.secret.LoggerProvider;
 
 class PrivateDomainPOJO implements Abc {
 
-
-
-
-
 	@Override
 	public int getA() {
 		// TODO Auto-generated method stub

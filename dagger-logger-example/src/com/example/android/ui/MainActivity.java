@@ -1,4 +1,4 @@
-package com.example.testingprivacy;
+package com.example.android.ui;
 
 
 import javax.inject.Inject;
@@ -9,6 +9,7 @@ import android.widget.TextView;
 
 import com.example.interfaces.Abc;
 import com.example.interfaces.Logger;
+import com.example.testingprivacy.R;
 
 /**
  * Main activity access to domain objects via Dependency injector

@@ -20,7 +20,7 @@ import static android.content.Context.LOCATION_SERVICE;
 
 import javax.inject.Singleton;
 
-import com.example.testingprivacy.DemoApplication;
+import com.example.android.ui.DemoApplication;
 
 import android.content.Context;
 import android.location.LocationManager;

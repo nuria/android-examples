@@ -15,11 +15,11 @@
  */
 package com.example.dagger.simple;
 
+import com.example.android.ui.MainActivity;
 import com.example.interfaces.Abc;
 import com.example.interfaces.Logger;
 import com.example.secret.LoggerProvider;
 import com.example.secret.TLog;
-import com.example.testingprivacy.MainActivity;
 
 import dagger.Module;
 import dagger.Provides;
