@@ -1,11 +1,11 @@
 package com.async;
 
-import static org.junit.Assert.fail;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
-import java.lang.ref.WeakReference;
-
-import org.junit.*;
-
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 /**
  * Very LOW TECH Concurrency Tests
  * @author nuria
@@ -24,32 +24,40 @@ public class TestAcho {
 	 */
 	@Test(timeout=10000)
 	public void testSlowWorkerSuceedsTenTimes() {
+		/**
+		 * A CountDownLatch initialized to <em>N</em>
+		* can be used to make one thread wait until <em>N</em> threads have
+		* completed some action, or some action has been completed N times.
+		 */
+		CountDownLatch doneSignal;
 		AchoExecutorServiceWrapper executor = new AchoExecutorServiceWrapper();
 
-		AchoTaskCallbackMock callback = new AchoTaskCallbackMock();
+
 		//now do the same thing but with the acho thread pool
-		long taskCount =10;
+		int taskCount = 10;
 		// how do we execute 
 
+		doneSignal = new CountDownLatch(taskCount);
+		DistinctSlowWorkerInteractor task1 = new DistinctSlowWorkerInteractor(executor);
+		AchoTaskCallbackMock callback = new AchoTaskCallbackMock();
+
 		for (int i = 0; i < taskCount; i++) {
-			executor.execute(new DistinctSlowWorker(callback, i));
+
+			task1.execute(i, callback, doneSignal);
 		}
 
-		while(!executor.getThreadPool().getQueue().isEmpty()){
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} //yuk, but what else?
-
+		try {
+			doneSignal.await(taskCount, TimeUnit.SECONDS);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
 
 
 		executor.shutdown();
 		while(executor.getThreadPool().isTerminating()){
 			try {
-				Thread.sleep(1000);
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -58,55 +66,68 @@ public class TestAcho {
 		Assert.assertEquals(executor.getThreadPool().getCompletedTaskCount(),taskCount);
 
 		// all tasks should succeed
-		Assert.assertEquals(callback.getSucessCount(),taskCount);
+		Assert.assertEquals(callback.getSucessCount(), taskCount);
 
 	}
 
 
 	/**
 	 * Schedule 10 tasks of which 5 are the same
-	 * only 6 should be executed
+	 * at least 6 should be executed. 
 	 */
 	@Test(timeout=10000)
 	public void testSlowWorkerDuplicateScheduling() {
+		/**
+		 * A CountDownLatch initialized to <em>N</em>
+		* can be used to make one thread wait until <em>N</em> threads have
+		* completed some action, or some action has been completed N times.
+		 */
+		CountDownLatch distinctDoneSignal;
+
+		CountDownLatch doneSignal;
+		
 		AchoExecutorServiceWrapper executor = new AchoExecutorServiceWrapper();
 
-		AchoTaskCallbackMock callback = new AchoTaskCallbackMock();
+
 		//now do the same thing but with the acho thread pool
-		long taskCount = 6;
-		// how do we execute 
+		int distinctTaskCount = 5;
 
-		for (int i = 0; i < taskCount; i++) {
-			executor.execute(new DistinctSlowWorker(callback, i));
-			executor.execute(new SimilarSlowWorker(callback, i));
+		/** amount of duplicated tasks we are scheduling **/
+		int sameTaskCount = 5;
+
+		distinctDoneSignal = new CountDownLatch(distinctTaskCount);
+		doneSignal = new CountDownLatch(sameTaskCount);
+
+		DistinctSlowWorkerInteractor task1 = new DistinctSlowWorkerInteractor(executor);
+		WorkerInteractorInterface task2 = new SimilarSlowWorkerInteractor(executor);
+
+		AchoTaskCallbackMock callback = new AchoTaskCallbackMock();
+
+		for (int i = 0; i < distinctTaskCount; i++) {
+			task1.execute(i, callback, doneSignal);
+			task2.execute(i, callback, doneSignal);
 		}
 
-		while(!executor.getThreadPool().getQueue().isEmpty()){
-			try {
-				Thread.sleep(1000); //yuk, but what else?
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} 
-
+		try {
+			distinctDoneSignal.await(distinctTaskCount, TimeUnit.SECONDS);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
-
 
 		executor.shutdown();
 		
 		while(executor.getThreadPool().isTerminating()){
 			try {
-				Thread.sleep(1000);
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} //yuk, but what else?
 		}
 		
-		Assert.assertEquals(executor.getThreadPool().getCompletedTaskCount(),taskCount);
-
-		// all tasks should succeed
-		Assert.assertEquals(callback.getSucessCount(),taskCount);
+		Assert.assertTrue(executor.getThreadPool().getCompletedTaskCount() > distinctTaskCount);
+		Assert.assertTrue(executor.getThreadPool().getCompletedTaskCount() < distinctTaskCount + sameTaskCount);
 
 	}
 

@@ -13,11 +13,11 @@ public abstract class AchoTaskBase implements AchoTask {
 
 	protected WeakReference<AchoTaskCallback> callback;
 
+
+
 	protected abstract boolean _run();
 
-	public AchoTaskBase(AchoTaskCallback callback) {
-		this.callback = new WeakReference<AchoTaskCallback>(callback, AchoCallbackReferenceQueueProvider.getInstance());
-	}
+
 
 	/**
 	 * Note that this might return null as reference to callback is stored like
@@ -29,8 +29,9 @@ public abstract class AchoTaskBase implements AchoTask {
 
 	/**
 	 * Very simple default implementation of logic to deduplicate tasks. If
-	 * tasks ids are equal return true Note that we could have the same task
-	 * executed with different paramters in that cause you want to have those
+	 * tasks ids are equal return true.
+	 * Note that we could have the same task
+	 * executed with different parameters in that cause you want to have those
 	 * into account when writing your implementation of equals
 	 */
 	public boolean equals(AchoTask other) {
