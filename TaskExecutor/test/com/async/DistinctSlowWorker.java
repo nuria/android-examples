@@ -45,10 +45,11 @@ public class DistinctSlowWorker extends TaskBase implements WorkerInteractorInte
 
 	@Override
 	public String getTaskId() {
-		return "slow_worker_equal";
+		return "distinct_worker_equal";
 	}
 
-	public boolean equals(Task other){
+	/** Any two tasks of this type are distinct **/
+	public boolean same(Task other){
 		return false;
 	}
 }

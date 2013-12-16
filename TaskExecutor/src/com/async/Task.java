@@ -13,7 +13,7 @@ public interface Task {
 	 * 
 	 * @return
 	 */
-	public boolean equals(Task other);
+	public boolean same(Task other);
 
 	/**
 	 * This is the id to identify tasks of the same kind can be generated at

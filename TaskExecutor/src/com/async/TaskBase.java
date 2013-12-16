@@ -27,16 +27,7 @@ public abstract class TaskBase implements Task {
 		return this.callback.get();
 	}
 
-	/**
-	 * Very simple default implementation of logic to deduplicate tasks. If
-	 * tasks ids are equal return true.
-	 * Note that we could have the same task
-	 * executed with different parameters in that cause you want to have those
-	 * into account when writing your implementation of equals
-	 */
-	public boolean equals(Task other) {
-		return this.getTaskId().equals(other.getTaskId());
-	}
+	
 
 	public void run() {
 		boolean success = this._run();

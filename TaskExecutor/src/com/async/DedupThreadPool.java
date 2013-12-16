@@ -6,7 +6,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.LinkedHashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -18,16 +20,14 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 
 	private static final int DEFAULT_QUEUE_CAPACITY = 20;
 
-	/**
-	 * map to help us cancel petitions to callbacks that might have been
-	 * garbage collected
-	 **/
-	private final Map<TaskCallback, List<TaskWrapper>> pendingTasks;
-
 	private final CleanupThread cleanupThread;
 
-	/** map to help us not to schedule duplicate petitions **/
-	private final Map<String, List<Task>> dedupingTaskList;
+	/** Set to help us not to schedule duplicate petitions **/
+	/**
+	 * Set to help us cancel petitions to callbacks that might have been
+	 * garbage collected
+	 **/
+	private final Set<TaskWrapper> dedupingTaskList;
 
 	/**
 	 * A LinkedBlockingQueue is an optionally-bounded blocking queue based
@@ -53,8 +53,8 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 		 */
 		this.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 
-		this.pendingTasks = Collections.synchronizedMap(new WeakHashMap<TaskCallback, List<TaskWrapper>>());
-		this.dedupingTaskList = new ConcurrentHashMap<String, List<Task>>();
+		
+		this.dedupingTaskList = Collections.synchronizedSet(new LinkedHashSet<TaskWrapper>());
 		this.cleanupThread = new CleanupThread(referenceQueue);
 		this.cleanupThread.start();
 
@@ -81,33 +81,22 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 
 			return;
 		}
-		TaskWrapper wrapper = new TaskWrapper(task);
-
-		List<TaskWrapper> wrapperList;
-		List<Task> taskList;
+		
 
 		synchronized (this) {
-			//first pending tasks
-			if (this.pendingTasks.get(task.getCallback()) == null) {
-				wrapperList = new ArrayList<TaskWrapper>();
-			} else {
-				wrapperList = this.pendingTasks.get(task.getCallback());
-
+			// rather than using the objects equals method
+			// we will use the task same method to see if this task has already
+			// been scheduled
+			
+			if (this.isDuplicateTask(task)) {
+				return;
 			}
-			wrapperList.add(wrapper);
-			this.pendingTasks.put(task.getCallback(), wrapperList);
-
-			//after dedup set
-			if (this.dedupingTaskList.get(task.getTaskId()) == null) {
-				taskList = new ArrayList<Task>();
-			} else {
-				taskList = this.dedupingTaskList.get(task.getTaskId());
-			}
-			taskList.add(task);
-			this.dedupingTaskList.put(task.getTaskId(), taskList);
+			TaskWrapper wrapper = new TaskWrapper(task);
+			this.dedupingTaskList.add(wrapper);
+			this.execute(wrapper);
 		}
 
-		this.execute(wrapper);
+		
 	}
 
 	/**
@@ -119,14 +108,13 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 	 */
 	private boolean isDuplicateTask(Task task) {
 
-		if (this.dedupingTaskList.get(task.getTaskId()) != null) {
-			List<Task> similarTasks = this.dedupingTaskList.get(task.getTaskId());
-			// check all entries of this tasks to see if one is equal
-			// to the one we want to schedule, if so return
-			Iterator<Task> it = similarTasks.iterator();
-
-			while (it.hasNext()) {
-				if (it.next().equals(task)) {
+		if (!this.dedupingTaskList.isEmpty()){
+			Iterator<TaskWrapper> it  = this.dedupingTaskList.iterator();
+			while(it.hasNext()) {
+				Task otherTask = it.next().getTask();
+				if (task.same(otherTask)){
+					// do not do anything this task is alredy scheduled
+					// now becareful when implementing this "same" method
 					return true;
 				}
 			}
@@ -153,21 +141,25 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 	}
 
 	/**
-	 * Remove task from queue. Called so far in a single threaded context as
+	 * Remove task from queue when its callback was collected. 
+	 * 
+	 * Called so far in a single threaded context as
 	 * it is called only from cleanup thread
 	 * 
 	 * @param callback
 	 */
 	private void removeTask(TaskCallback callback) {
-		List<TaskWrapper> pending = this.pendingTasks.get(callback);
-		this.pendingTasks.remove(callback);
-
-		if (!pending.isEmpty()) {
-			java.util.Iterator<TaskWrapper> it = pending.iterator();
+		
+		if (!this.dedupingTaskList.isEmpty()) {
+			Iterator<TaskWrapper> it = dedupingTaskList.iterator();
 			while (it.hasNext()) {
 				TaskWrapper wrapper = it.next();
-				this.remove(wrapper);
-				this._removeTaskFromDedupingSet(wrapper.getTask());
+				// is there a better thing to compare here than equals?
+				// TODO maybe callbacks should have a id to identify them further
+				if (wrapper.getTask().getCallback().equals(callback)){
+					dedupingTaskList.remove(wrapper);
+				}
+				
 			}
 		}
 
@@ -183,39 +175,11 @@ final class DedupThreadPool extends ThreadPoolExecutor {
 	protected void afterExecute(Runnable r, Throwable t) {
 		super.afterExecute(r, t);
 		TaskWrapper wrapper = (TaskWrapper) r;
-		this._removeTaskFromDedupingSet(wrapper.getTask());
-
-		// Do we need to explicitily do this? I think it will get GC
-		// collected anyways
-		// given it is a weakhashmap
-		this.pendingTasks.remove(wrapper);
+		this.dedupingTaskList.remove(wrapper);
 
 	}
 
-	/**
-	 * Remove task from duplicated set, can be called on a multithreaded
-	 * context
-	 * 
-	 * @param task
-	 */
-	private synchronized void _removeTaskFromDedupingSet(Task task) {
-		List<Task> tasks = this.dedupingTaskList.get(task.getTaskId());
 
-		if (tasks != null) {
-			if (tasks.size() == 1) {
-				this.dedupingTaskList.remove(task.getTaskId());
-			} else {
-				Iterator<Task> it = tasks.iterator();
-				while (it.hasNext()) {
-					if (task.equals(it.next())) {
-						tasks.remove(task);
-						break;
-					}
-				}
-				this.dedupingTaskList.put(task.getTaskId(), tasks);
-			}
-		}
-	}
 
 	/**
 	 * Note this class is not static thus keeps a reference to its parent

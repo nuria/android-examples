@@ -52,7 +52,8 @@ public class SimilarSlowWorker extends TaskBase implements WorkerInteractorInter
 		return "slow_worker";
 	}
 	
-	public boolean equals(Task other){
+	/** any two tasks of this type are the same **/
+	public boolean same(Task other){
 		return this.getTaskId().equals(other.getTaskId());
 	}
 
